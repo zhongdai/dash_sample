@@ -44,6 +44,16 @@ This is a profile tool to enable users compare two (or three) data sets, and che
         value = groups[:2],
         multi = True
     ),
+    html.Label('Measurement'),
+
+    dcc.RadioItems(
+        id = 'dd-measurement',
+        options=[
+            {'label': '% of Sub Total', 'value': 'PCT'},
+            {'label': 'Compare to Base', 'value': 'BASE'},
+        ],
+        value='PCT'
+    ),
     html.Label('Select base attribute:'),
     dcc.Dropdown(
         id = 'dd-attr1',
@@ -62,14 +72,16 @@ This is a profile tool to enable users compare two (or three) data sets, and che
     ),
 ], className="container")
 
+
 @app.callback(
     Output('my-graph', 'figure'),
     [
         Input('dd-groups', 'value'),
         Input('dd-attr1', 'value'),
-        Input('dd-attr2', 'value')
+        Input('dd-attr2', 'value'),
+        Input('dd-measurement', 'value')
     ])
-def update_figure(groups, attr1, attr2):
+def update_figure(groups, attr1, attr2, measure):
 
     if len(groups) > 3:
         return html.Div([html.H4('Can not select more than 3 groups')])
@@ -99,6 +111,16 @@ def update_figure(groups, attr1, attr2):
             for group_id, group_value in enumerate(groups, start=1):
                 sub_df = row_df[row_df['Group'] == group_value]
                 count_df = sub_df.groupby(attr1).sum()['Count'] / sub_df.sum()['Count'] 
+
+                # Speical handling for measure = Base
+                if measure == 'BASE':
+                    yaxis_title = 'Compare to Base'
+                    if group_value == 'Base':
+                        base_pct = count_df
+                    count_df = count_df - base_pct
+                else:
+                    yaxis_title = '% of Sub Total'
+
                 bar_plot = go.Bar(x = count_df.index, 
                                   y = count_df.values.tolist(), 
                                   marker=dict( color=group_colors[group_id-1]),
@@ -113,7 +135,7 @@ def update_figure(groups, attr1, attr2):
         }
 
         for i in range(num_of_attr2_values):
-            layout["yaxis{}".format(i+1)] = {'title': '% of Total'}
+            layout["yaxis{}".format(i+1)] = {'title': yaxis_title}
             layout["xaxis{}".format(i+1)] = {'title': attr1}
 
         fig['layout'].update(layout)
@@ -124,13 +146,29 @@ def update_figure(groups, attr1, attr2):
         for group_value in groups:
             sub_df = summary_df[summary_df['Group'] == group_value]
             count_df = sub_df.groupby(attr1).sum()['Count'] / sub_df.sum()['Count'] 
+
+            # Speical handling for measure = Base
+            if measure == 'BASE':
+                yaxis_title = 'Compare to Base'
+                if group_value == 'Base':
+                    base_pct = count_df
+                count_df = count_df - base_pct
+            else:
+                yaxis_title = '% of Sub Total'
+
             bar_plot = go.Bar(x = count_df.index, 
                               y = count_df.values.tolist(), 
                               name = group_value)
                 # run n times, n = num of groups
             fig.append_trace(bar_plot, 1, 1)
 
-        fig['layout'].update(height=height, title="Compare based on {}".format(attr1))  
+        layout = {
+            'height': height,
+            'title': "Compare based on {}".format(attr1),
+            'xaxis1': {'title': attr1},
+            'yaxis1': {'title': yaxis_title}
+        }
+        fig['layout'].update(layout)
         return fig
 
 
